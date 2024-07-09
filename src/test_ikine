@@ -1,0 +1,57 @@
+#!/usr/bin/env python3
+
+import rospy
+from sensor_msgs.msg import JointState
+from markers import *
+from proy_functions import *
+
+if __name__ == '__main__':
+
+    rospy.init_node("testInvKine")
+    pub = rospy.Publisher('joint_states', JointState, queue_size=1)
+
+    bmarker      = BallMarker(color['RED'])
+    bmarker_des  = BallMarker(color['GREEN'])
+
+    # Joint names
+    jnames = ['Revolute 1', 'Revolute 2', 'Revolute 3','Slider 4', 'Revolute 5', 'Revolute 6','Revolute 7']
+    error = open("/tmp/error.txt", "w")                    
+    # Desired position
+    xd = np.array([-0.3, -0.5, 1])
+    # Initial configuration
+    #q0 = np.array([0.0, -1.0, 1.7, -2.2, -1.6, 0.0])
+    q0 = np.array([0.5, 0,0, 0.5, 0, 0, 0])
+    # Inverse kinematics
+    q = ikine_mh5lsii(xd, q0,error)
+
+    # Resulting position (end effector with respect to the base link)
+    T = fkine_mh5lsii(q)
+    print('Obtained value:\n', np.round(T,3))
+
+    # Red marker shows the achieved position
+    bmarker.xyz(T[0:3,3])
+    # Green marker shows the desired position
+    bmarker_des.xyz(xd)
+    
+    # Objeto (mensaje) de tipo JointState
+    jstate = JointState()
+    # Asignar valores al mensaje
+    jstate.header.stamp = rospy.Time.now()
+    jstate.name = jnames
+    # Add the head joint value (with value 0) to the joints
+    jstate.position = q
+
+    # Loop rate (in Hz)
+    rate = rospy.Rate(100)
+    
+    # Continuous execution loop
+    while not rospy.is_shutdown():
+        # Current time (needed for ROS)
+        jstate.header.stamp = rospy.Time.now()
+        # Publish the message
+        pub.publish(jstate)
+        bmarker.publish()
+        bmarker_des.publish()
+        # Wait for the next iteration
+        rate.sleep()
+    error.close()

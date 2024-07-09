@@ -1,0 +1,119 @@
+#!/usr/bin/env python3
+
+import rospy
+from sensor_msgs.msg import JointState
+from markers import *
+from proy_functions import *
+from roslib import packages
+
+import rbdl
+
+if __name__ == '__main__':
+    rospy.init_node("control_pdg")
+    pub = rospy.Publisher('joint_states', JointState, queue_size=1000)
+    bmarker_actual  = BallMarker(color['RED'])
+    bmarker_deseado = BallMarker(color['GREEN'])
+    # Archivos donde se almacenara los datos
+    fqact = open("/tmp/qactual.txt", "w")
+    fqdes = open("/tmp/qdeseado.txt", "w")
+    fxact = open("/tmp/xcurrent.txt", "w")
+    fxdes = open("/tmp/xdesired.txt", "w")
+    dummy = open("/tmp/dummy.txt", "w")
+
+    # Nombres de las articulaciones
+    jnames = ['Revolute 1', 'Revolute 2', 'Revolute 3','Slider 4', 'Revolute 5', 'Revolute 6','Revolute 7']
+    # Objeto (mensaje) de tipo JointState
+    jstate = JointState()
+    # Valores del mensaje
+    jstate.header.stamp = rospy.Time.now()
+    jstate.name = jnames
+
+    # =============================================================
+    # Configuracion articular inicial (en radianes)
+    q = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0,0.0])
+    # Velocidad inicial
+    dq = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+    # Configuracion articular deseada
+    qdes = np.array([0.3, 0.3, 0.3, 0.025, 0.3, 0.3,0.3])
+
+
+    # =============================================================
+
+    # Posicion resultante de la configuracion articular deseada
+    xdes = fkine_mh5lsii(qdes)[0:3,3]
+    # Copiar la configuracion articular en el mensaje a ser publicado
+    jstate.position = q
+    pub.publish(jstate)
+
+    # Modelo RBDL
+    modelo = rbdl.loadModel('/home/ctorres/lab_ws/src/mh5lsii_01_description/urdf/mh5lsii_01.urdf')
+    # Grados de libertad
+    ndof = modelo.q_size
+
+    # Frecuencia del envio (en Hz)
+    freq = 20
+    dt = 1.0/freq
+    rate = rospy.Rate(freq)
+
+    # Simulador dinamico del robot
+    robot = Robot(q, dq, ndof, dt)
+
+    # Se definen las ganancias del controlador
+    Kp = 0.000000001*np.eye(ndof)
+    #Kd = 2*np.sqrt(Kp)
+    Kd = 0.000000001*np.eye(ndof)
+    epsilon= 0.0001
+    # Bucle de ejecucion continua
+    t = 0.0
+    u      = np.zeros(ndof)   # Reemplazar por la ley de control
+    zeros  = np.zeros(ndof)  #Vector de ceros
+    while not rospy.is_shutdown():
+        # Tiempo actual (necesario como indicador para ROS)
+        jstate.header.stamp = rospy.Time.now()
+        # Leer valores del simulador
+        q  = robot.read_joint_positions()
+        dq = robot.read_joint_velocities()
+            
+        if q[3] > 0.05:
+            q[3] = 0.05
+        elif q[3] <0.00:
+            q[3] = 0.0
+        # Posicion actual del efector final
+        x = fkine_mh5lsii(q)[0:3,3]
+        # ----------------------------
+        # Control dinamico
+        # ----------------------------
+        g      = np.zeros(ndof)
+        rbdl.InverseDynamics(modelo, q, zeros, zeros, g)  # Vector de gravedad
+        g = np.round(g,4)
+        e = qdes - q
+        u = Kp.dot(e) - Kd.dot(dq) + g   # Ley de Control (PD + Gravedad)
+        # ------------------------------
+        # Simulacion del robot
+        robot.send_command(u)
+        print("fase4", u)
+        # Verificación si se llegó al punto deseado
+        if (np.linalg.norm(e)<epsilon):
+            break
+
+        # Almacenamiento de datos
+        fxact.write(str(t)+' '+str(x[0])+' '+str(x[1])+' '+str(x[2])+'\n')
+        fxdes.write(str(t)+' '+str(xdes[0])+' '+str(xdes[1])+' '+str(xdes[2])+'\n')
+        fqact.write(str(t)+' '+str(q[0])+' '+str(q[1])+' '+ str(q[2])+' '+ str(q[3])+' '+str(q[4])+' '+str(q[5])+' '+str(q[6])+'\n ')
+        fqdes.write(str(t)+' '+str(qdes[0])+' '+str(qdes[1])+' '+ str(qdes[2])+' '+ str(qdes[3])+' '+str(qdes[4])+' '+str(qdes[5])+' '+str(qdes[6])+'\n ')
+        
+        print("fase5", q)
+        # Publicacion del mensaje
+        jstate.position = q
+        pub.publish(jstate)                
+        bmarker_deseado.xyz(xdes)
+        bmarker_actual.xyz(x)
+        t = t+dt
+        # Esperar hasta la siguiente  iteracion
+        rate.sleep()
+
+    fqact.close()
+    fqdes.close()
+    fxact.close()
+    fxdes.close()
+    dummy.close()
