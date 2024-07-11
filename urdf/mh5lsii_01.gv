@@ -1,0 +1,26 @@
+digraph G {
+node [shape=box];
+"base_link" [label="base_link"];
+"mh5lsii_03_v1_1" [label="mh5lsii_03_v1_1"];
+"mh5lsii_04_v1_1" [label="mh5lsii_04_v1_1"];
+"mh5lsii_05_v1_1" [label="mh5lsii_05_v1_1"];
+"m5h_intermedio56_v2_1" [label="m5h_intermedio56_v2_1"];
+"mh5lsii_06_v1_1" [label="mh5lsii_06_v1_1"];
+"mh5lsii_07_v1_1" [label="mh5lsii_07_v1_1"];
+"mh5lsii_08_v1_1" [label="mh5lsii_08_v1_1"];
+node [shape=ellipse, color=blue, fontcolor=blue];
+"base_link" -> "Revolute 1" [label="xyz: 0 0 0.229 \nrpy: 0 -0 0"]
+"Revolute 1" -> "mh5lsii_03_v1_1"
+"mh5lsii_03_v1_1" -> "Revolute 2" [label="xyz: -0.0555 0.088 0.101 \nrpy: 0 -0 0"]
+"Revolute 2" -> "mh5lsii_04_v1_1"
+"mh5lsii_04_v1_1" -> "Revolute 3" [label="xyz: -0.007 0 0.4 \nrpy: 0 -0 0"]
+"Revolute 3" -> "mh5lsii_05_v1_1"
+"mh5lsii_05_v1_1" -> "Slider 4" [label="xyz: 0.063 0.0705 0.04 \nrpy: 0 -0 0"]
+"Slider 4" -> "m5h_intermedio56_v2_1"
+"m5h_intermedio56_v2_1" -> "Revolute 5" [label="xyz: 0 0.13 0 \nrpy: 0 -0 0"]
+"Revolute 5" -> "mh5lsii_06_v1_1"
+"mh5lsii_06_v1_1" -> "Revolute 6" [label="xyz: 0.031 0.3335 0 \nrpy: 0 -0 0"]
+"Revolute 6" -> "mh5lsii_07_v1_1"
+"mh5lsii_07_v1_1" -> "Revolute 7" [label="xyz: -0.03 0.0505 0 \nrpy: 0 -0 0"]
+"Revolute 7" -> "mh5lsii_08_v1_1"
+}

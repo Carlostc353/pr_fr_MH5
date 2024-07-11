@@ -31,22 +31,18 @@ if __name__ == '__main__':
     # Configuracion articular inicial (en radianes)
     q = np.array([0.2, 0.2, 0.2, 0.025, 0.2, 0.2,0.2])
     # Velocidad inicial
-    dq = np.array([0.1, 0.1, 0.1, 0.002, 0.1, 0.1, 0.1])
-    # Aceleracion inicial
-    ddq = np.array([0., 0., 0., 0., 0., 0.])
+    dq = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
     # Configuracion articular deseada
-    qdes = np.array([0, 0, 0, 0.025, 0, 0,0])
-    # Velocidad articular deseada
-    dqdes = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
-    # Aceleracion articular deseada
-    ddqdes = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+    qdes = np.array([0.6, 0.4, 0.2, 0.025, 0.6, 0.4, 0.2])
+    ddxdes= np.array([0.1, 0.1, 0.1])
+
+
     # =============================================================
 
 
     # Posicion resultante de la configuracion articular deseada
     xdes = fkine_mh5lsii(qdes)[0:3,3]
-    dxdes = np.array([0,0,0])
-    ddxdes = np.array([0,0,0])
+
 
     # Copiar la configuracion articular en el mensaje a ser publicado
     jstate.position = q
@@ -54,7 +50,7 @@ if __name__ == '__main__':
     pub.publish(jstate)
 
     # Modelo RBDL
-    modelo = rbdl.loadModel('/home/ctorres/lab_ws/src/mh5lsii_01_description/urdf/mh5lsii_01.urdf')
+    modelo = rbdl.loadModel('/home/ctorres/lab_ws/src/mh5lsii_01_description/urdf/mh5lsii_01_modelo.urdf')
     ndof   = modelo.q_size     # Grados de libertad
     zeros = np.zeros(ndof)     # Vector de ceros
 
@@ -70,13 +66,16 @@ if __name__ == '__main__':
     t = 0.0
 
     # Se definen las ganancias del controlador
-    valores = 0.0000000000000000000000000000000000001*np.array([0.00001, 0.00001,0.00001, 0.00001, 0.00001, 0.00001,0.00001])
+    valores = 1*np.eye(3)
     Kp = np.diag(valores)
-    Kd = 2*np.sqrt(Kp)
-    J_PAS = np.zeros([3,ndof])
-    epas = np.array([0,0,0])
-
-
+    Kd = np.diag(valores)
+    epsilon = 0.001
+    epas = xdes - fkine_mh5lsii(q)[0:3,3]
+    J_PAS = jacobian_mh5lsii(q)
+    
+    b = np.zeros(ndof)
+    g = np.zeros(ndof)                # Para efectos no lineales
+    M = np.zeros([ndof, ndof])     # Para matriz de inercia
     while not rospy.is_shutdown():
 
         # Leer valores del simulador
@@ -87,46 +86,52 @@ if __name__ == '__main__':
         # Tiempo actual (necesario como indicador para ROS)
         jstate.header.stamp = rospy.Time.now()
 
-        
+        if q[3] > 0.05:
+            q[3] = 0.05
+        elif q[3] <0.00:
+            q[3] = 0.0
         # ----------------------------
         # Control dinamico (COMPLETAR)
         # ----------------------------
         
-        b2 = np.zeros(ndof)             # Para efectos no lineales
-        M2 = np.zeros([ndof, ndof])     # Para matriz de inercia
-            
-        # Matriz de Inercia
-        rbdl.CompositeRigidBodyAlgorithm(modelo, q, M2)
-        
-        # Vector de efectos no lineales
-        rbdl.NonlinearEffects(modelo, q, dq, b2)
+        # Calculo de error y derivada de error
+        e = xdes - x
+        # Verificación si se llegó al punto deseado
+        if (np.linalg.norm(e)<epsilon):
+            break
+        de = (e-epas)/dt
         
         # Calculo de Jacobiano y su derivada
         Ja = jacobian_mh5lsii(q)
         dJa = (Ja - J_PAS) / dt
         
-        # Calculo de error y derivada de error
-        e = xdes - x
-        de = (e-epas)/dt
-        print('error')
-        print(de)
+        
+        # Matriz de Inercia
+        rbdl.CompositeRigidBodyAlgorithm(modelo, q, M)
+        
+        # Vector de efectos no lineales
+        rbdl.NonlinearEffects(modelo, q, dq, b)
+        
+        rbdl.InverseDynamics(modelo, q, zeros, zeros, g)  # Vector de gravedad
+        g = np.round(g,4)
 
         # Ley de control
-        u = M2.dot(np.linalg.pinv(Ja)).dot(ddxdes - dJa.dot(dq) + Kd.dot(de) + Kp.dot(e)) + b2
+        u = M @ (np.linalg.pinv(Ja))@(ddxdes-dJa @ dq + Kd @ de + Kp @ e) + b 
         epas = copy(e)
         J_PAS = copy(Ja)
-
-        # Simulacion del robot
-        robot.send_command(u)
-
+        
+        
         # Almacenamiento de datos
         fxact.write(str(t)+' '+str(x[0])+' '+str(x[1])+' '+str(x[2])+'\n')
         fxdes.write(str(t)+' '+str(xdes[0])+' '+str(xdes[1])+' '+str(xdes[2])+'\n')
-        fqact.write(str(t)+' '+str(q[0])+' '+str(q[1])+' '+ str(q[2])+' '+ str(q[3])+' '+str(q[4])+' '+str(q[5])+'\n ')
-        fqdes.write(str(t)+' '+str(qdes[0])+' '+str(qdes[1])+' '+ str(qdes[2])+' '+ str(qdes[3])+' '+str(qdes[4])+' '+str(qdes[5])+'\n ')
+        fqact.write(str(t)+' '+str(q[0])+' '+str(q[1])+' '+ str(q[2])+' '+ str(q[3])+' '+str(q[4])+' '+str(q[5])+' '+str(q[6])+'\n ')
+        fqdes.write(str(t)+' '+str(qdes[0])+' '+str(qdes[1])+' '+ str(qdes[2])+' '+ str(qdes[3])+' '+str(qdes[4])+' '+str(qdes[5])+' '+str(q[6])+'\n ')
 
+        # Simulacion del robot
+        robot.send_command(u)
+        print("El error es: ", e)
         # Publicacion del mensaje
-        jstate.position = np.concatenate((q, np.zeros(2)))
+        jstate.position = q
         pub.publish(jstate)
         bmarker_deseado.xyz(xdes)
         bmarker_actual.xyz(x)

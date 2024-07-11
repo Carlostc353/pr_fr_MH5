@@ -1,5 +1,6 @@
 <?xml version="1.0"?>
 <launch>
+
   <arg name="model" default="$(find mh5lsii_01_description)/urdf/mh5lsii_01.xacro"/>
   <arg name="gui" default="true"/>
   <arg name="rvizconfig" default="$(find mh5lsii_01_description)/launch/urdf.rviz"/>

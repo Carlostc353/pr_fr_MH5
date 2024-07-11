@@ -18,7 +18,6 @@ if __name__ == '__main__':
     fqdes = open("/tmp/qdeseado.txt", "w")
     fxact = open("/tmp/xcurrent.txt", "w")
     fxdes = open("/tmp/xdesired.txt", "w")
-    dummy = open("/tmp/dummy.txt", "w")
 
     # Nombres de las articulaciones
     jnames = ['Revolute 1', 'Revolute 2', 'Revolute 3','Slider 4', 'Revolute 5', 'Revolute 6','Revolute 7']
@@ -44,7 +43,7 @@ if __name__ == '__main__':
     pub.publish(jstate)
 
     # Modelo RBDL
-    modelo = rbdl.loadModel('/home/ctorres/lab_ws/src/mh5lsii_01_description/urdf/mh5lsii_01.urdf')
+    modelo = rbdl.loadModel('/home/ctorres/lab_ws/src/mh5lsii_01_description/urdf/mh5lsii_01_modelo.urdf')
     # Grados de libertad
     ndof = modelo.q_size
 
@@ -57,9 +56,9 @@ if __name__ == '__main__':
     robot = Robot(q, dq, ndof, dt)
 
     # Se definen las ganancias del controlador
-    Kp = 0.000000001*np.eye(3)
+    Kp = 1*np.eye(3)
     #Kd = 2*np.sqrt(Kp)
-    Kd = 0.000000001*np.eye(3)
+    Kd = 1*np.eye(3)
     epsilon= 0.0001
     # Bucle de ejecucion continua
     t = 0.0
@@ -67,44 +66,43 @@ if __name__ == '__main__':
     zeros  = np.zeros(ndof)  #Vector de ceros
     g      = np.zeros(ndof)
     while not rospy.is_shutdown():
-        # Tiempo actual (necesario como indicador para ROS)
-        jstate.header.stamp = rospy.Time.now()
         # Leer valores del simulador
         q  = robot.read_joint_positions()
         dq = robot.read_joint_velocities()
-            
+        # Posicion actual del efector final
+        x = fkine_mh5lsii(q)[0:3,3]
+        # Tiempo actual (necesario como indicador para ROS)
+        jstate.header.stamp = rospy.Time.now()
+        
         if q[3] > 0.05:
             q[3] = 0.05
         elif q[3] <0.00:
             q[3] = 0.0
-        # Posicion actual del efector final
-        x = fkine_mh5lsii(q)[0:3,3]
-
-
         # ----------------------------
         # Control dinamico
         # ----------------------------
-        rbdl.InverseDynamics(modelo, q, zeros, zeros, g)  # Vector de gravedad
-        g = np.round(g,2)
         e = xdes-x
-        J = jacobian_mh5lsii(q)
-        u = g +  - J.T.dot(Kp.dot(e)-Kd.dot(J.dot(dq)))   # Ley de Control (PD + Gravedad)
-        # ------------------------------
-        # Simulacion del robot
-        robot.send_command(u)
-        print("fase4", u)
         # Verificación si se llegó al punto deseado
         if (np.linalg.norm(e)<epsilon):
             break
-
-        # Almacenamiento de datos
+            
+        rbdl.InverseDynamics(modelo, q, zeros, zeros, g)  # Vector de gravedad
+        g = np.round(g,4)
+        J = jacobian_mh5lsii(q)
+        u = g +  - J.T.dot(Kp.dot(e)-Kd.dot(J.dot(dq)))   # Ley de Control (PD + Gravedad)
+        # ------------------------------
         # Almacenamiento de datos
         fxact.write(str(t)+' '+str(x[0])+' '+str(x[1])+' '+str(x[2])+'\n')
         fxdes.write(str(t)+' '+str(xdes[0])+' '+str(xdes[1])+' '+str(xdes[2])+'\n')
+        
+        # Simulacion del robot
+        robot.send_command(u)
+        print("fase4", u)
+
+        
         print("fase5", q)
         # Publicacion del mensaje
         jstate.position = q
-        jstate.velocity = dq
         pub.publish(jstate)
         # Publish JointState message                 
         bmarker_deseado.xyz(xdes)
@@ -117,4 +115,3 @@ if __name__ == '__main__':
     fqdes.close()
     fxact.close()
     fxdes.close()
-    dummy.close()

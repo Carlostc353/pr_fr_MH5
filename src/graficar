@@ -14,14 +14,14 @@ time = range(desired_output.shape[0])
 plt.figure(figsize=(12, 8))
 
 # Plot desired output
-plt.plot(time, desired_output[:, 0], label='Desired x', linestyle='--')
-plt.plot(time, desired_output[:, 1], label='Desired y', linestyle='--')
-plt.plot(time, desired_output[:, 2], label='Desired z', linestyle='--')
+plt.plot(desired_output[:, 0], desired_output[:, 1], label='Desired x', linestyle='--')
+plt.plot(desired_output[:, 0], desired_output[:, 2], label='Desired y', linestyle='--')
+plt.plot(desired_output[:, 0], desired_output[:, 3], label='Desired z', linestyle='--')
 
 # Plot current output
-plt.plot(time, current_output[:, 0], label='Current x')
-plt.plot(time, current_output[:, 1], label='Current y')
-plt.plot(time, current_output[:, 2], label='Current z')
+plt.plot(current_output[:, 0], current_output[:, 1], label='Current x')
+plt.plot(current_output[:, 0], current_output[:, 2], label='Current y')
+plt.plot(current_output[:, 0], current_output[:, 3], label='Current z')
 
 plt.xlabel('Tiempo')
 plt.ylabel('Posicion')

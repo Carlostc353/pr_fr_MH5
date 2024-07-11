@@ -12,7 +12,7 @@ class Robot(object):
         self.M = np.zeros([ndof, ndof])
         self.b = np.zeros(ndof)
         self.dt = dt
-        self.robot = rbdl.loadModel('/home/ctorres/lab_ws/src/mh5lsii_01_description/urdf/mh5lsii_01.urdf')
+        self.robot = rbdl.loadModel('/home/ctorres/lab_ws/src/mh5lsii_01_description/urdf/mh5lsii_01_modelo.urdf')
 
     def send_command(self, tau):
         rbdl.CompositeRigidBodyAlgorithm(self.robot, self.q, self.M)
@@ -20,6 +20,8 @@ class Robot(object):
         ddq = np.linalg.inv(self.M).dot(tau-self.b)
         self.q = self.q + self.dt*self.dq
         self.dq = self.dq + self.dt*ddq
+        
+        
 
     def read_joint_positions(self):
         return self.q
